@@ -1,0 +1,665 @@
+---
+pagetitle: The multiple regression model
+output: 
+  revealjs::revealjs_presentation:
+    incremental: false
+    theme: solarized
+    self_contained: false
+    # reveal_plugins: ["menu","notes","chalkboard"]
+    reveal_plugins: ["menu"]
+    highlight: pygments
+    center: true
+    transition: none
+    background_transition: none 
+    reveal_options:
+      # chalkboard:
+      #   theme: whiteboard
+      #   toggleNotesButton: true
+      #   toggleChalkboardButton: true
+      menu:
+        numbers: true
+      slideNumber: true
+      previewLinks: false
+    fig_caption: true
+    pandoc_args:
+    - --indented-code-classes
+    - lineNumbers
+    css: mystyle.css
+    
+--- 
+
+<section>
+
+<h1>The multiple regression model</h1>
+
+Based on Stock and Watson, ch. 6
+
+<br>
+
+<h2>[Jesper Bagger](mailto:jesper.bagger@rhul.ac.uk)</h2>
+
+<h3>EC2203 | Royal Holloway | 2020/21</h3>
+
+</section>
+
+
+```{r results='asis', echo=FALSE, include=FALSE}
+library(AER) # load Applied Econometrics with R library
+library(parameters) # Load parameters library for robust SE computation
+library(plotly) # Include library plotly for 3D plots
+library(reshape2) # LInclude library for flexible reshaping of dataframes, used in conjunctino w/ plotly for £D-plots
+data(CASchools) # Load CASchools data
+# Generate a couple of useful variables
+CASchools$STR <- CASchools$students/CASchools$teachers  # Student-teacher ratio
+CASchools$Score <- (CASchools$read + CASchools$math)/2  # Student test score
+```
+
+# Outline
+
+1. Omitted variable bias
+
+2. Holding other variables constant
+
+3. The multiple regression model
+
+4. The OLS estimator in multiple regression
+
+# Omitted variable bias
+
+## The simple regression model
+
+<div class="box">
+$$Y_i = \beta_0 + \beta_1 X_i + u_i; \quad i = 1,2,...,n$$
+
+The causal effect $\beta_1$ is well estimated by OLS if
+
+1. Zero conditional mean: $\mathrm{E}(u_i|X_i) = 0$
+
+2. The data point $(X_i,Y_i;i=1,2,...,n)$ are i.i.d. draws from the joint distribution of $X$ and $Y$
+
+3. Large outliers of $X_i$ and $Y_i$ are unlikely
+
+</div>
+
+
+## Test scores, student-teacher ratio, and percentage of English learners
+
+```{r echo=TRUE, error=FALSE, warning=FALSE, out.width = "70%"}
+library(AER) # load Applied Econometrics with R library
+library(parameters) # Load parameters library for robust SE computation
+data(CASchools) # Load CASchools data
+# Generate a couple of useful variables
+CASchools$STR <- CASchools$students/CASchools$teachers  # Student-teacher ratio
+CASchools$Score <- (CASchools$read + CASchools$math)/2  # Student test score
+```
+
+## Test scores and student-teacher ratio
+
+```{r echo=FALSE, error=FALSE, warning=FALSE, out.width = "70%"}
+lm1 <- lm(Score ~ STR,data= CASchools)
+plot(CASchools$STR,CASchools$Score, 
+     col = "blue",
+     xlab = "Student-teacher ratio", 
+     ylab = "Test score", 
+     xlim = c(10, 30), 
+     ylim = c(600, 720))
+abline(lm1,
+       lwd = 3,
+       col = "red")
+```
+
+## Test scores and percentage of English learners
+
+```{r echo=FALSE, error=FALSE, warning=FALSE, out.width = "70%"}
+lm2 <- lm(Score ~ english,data= CASchools)
+plot(CASchools$english,CASchools$Score, 
+     col = "blue",
+     xlab = "Learning English", 
+     ylab = "Test score", 
+     xlim = c(0, 100), 
+     ylim = c(600, 720))
+abline(lm2,
+       lwd = 3,
+       col = "red")
+```
+
+
+## Percentage of English learners and student-teacher ratio
+
+```{r echo=FALSE, error=FALSE, warning=FALSE, out.width = "70%"}
+lm3 <- lm(english ~ STR,data= CASchools)
+plot(CASchools$STR,CASchools$english, 
+     col = "blue",
+     xlab = "Student-teacher ratio", 
+     ylab = "Learning English", 
+     xlim = c(10, 30), 
+     ylim = c(0, 100))
+abline(lm3,
+       lwd = 3,
+       col = "red")
+```
+
+## Omitted variable bias
+
+```{r echo=FALSE, error=FALSE, warning=FALSE, out.width = "80%"}
+par(mfrow=c(1,3))
+
+plot(CASchools$STR,CASchools$Score, 
+     col = "blue",
+     xlab = "Student-teacher ratio", 
+     ylab = "Test score", 
+     xlim = c(10, 30), 
+     ylim = c(600, 720))
+abline(lm1,
+       lwd = 3,
+       col = "red")
+
+plot(CASchools$english,CASchools$Score, 
+     col = "blue",
+     xlab = "Learning English", 
+     ylab = "Test score", 
+     xlim = c(0, 100), 
+     ylim = c(600, 720))
+abline(lm2,
+       lwd = 3,
+       col = "red")
+
+plot(CASchools$STR,CASchools$english, 
+     col = "blue",
+     xlab = "Student-teacher ratio", 
+     ylab = "Learning English", 
+     xlim = c(10, 30), 
+     ylim = c(0, 100))
+abline(lm3,
+       lwd = 3,
+       col = "red")
+```
+
+## Omitted variable bias in simple regression
+
+<div class="box"> 
+$$Y_i = \beta_0 + \beta_1 X_i + u_i; \quad i = 1,2,...,n$$
+
+**Omitted variable bias** is the bias in the OLS estimator of the causal effect of $X$ on $Y$ that arises when the regressor $X$ is **correlated** with an **omitted variable**
+
+Omitted variable bias arises when two conditions are met:
+
+1. $X$ is **correlated** with the omitted variable
+
+2. The omitted variable is a **determinant** of $Y$
+</div>
+
+## Omitted variables and the least squares assumptions
+
+- Because the omitted variable is a determinant of $Y$, it is contained in the error term $u$
+
+- If the omitted variable correlates with the included $X$, 
+
+  $$\mathrm{E}(u|X) \neq 0$$
+  
+- Omitted variables **violate** the least squares assumptions for causal inference: OLS estimator **biased**, **inconsistent**
+
+  $$\hat{\beta}_1 \overset{p}{\rightarrow} \beta_1 + \frac{\sigma_{Xu}}{\sigma^2_X}$$
+  
+# Holding other variables constant
+
+## Holding the omitted variable constant
+
+- The omitted variable problem arise because an excluded determinant of $Y$ **correlates** with $X$
+
+  Solution: estimate the effect of $X$ on $Y$ **holding the omitted variable constant**
+
+- Works because constant variables cannot correlate with other variables
+
+## Holding Percentage English learners constant
+
+All districts 
+
+```{r echo=FALSE, error=FALSE, warning=FALSE, out.width = "70%"}
+# Scatter plots of STR, Score and english data
+par(mfrow=c(1,2)) 
+# STR vs Score
+plot(CASchools$STR,CASchools$Score,
+     xlab = "Student-teacher ratio",
+     ylab = "Test score",
+     col = "gray",
+     xlim = c(10, 30),
+     ylim = c(600, 720))
+abline(lm1,
+       lwd = 3,
+       col = "gray")
+# STR vs english
+plot(CASchools$STR,CASchools$english,
+     col = "gray",
+     xlab = "Student-teacher ratio",
+     ylab = "Learning English",
+     xlim = c(10, 30),
+     ylim = c(0, 100))
+abline(lm3,
+       lwd = 3,
+       col = "gray")
+```
+
+## Holding Percentage English learners constant
+
+Districts where percentage learning English $\leq$ 1.9%
+
+```{r echo=FALSE, error=FALSE, warning=FALSE, out.width = "80%"}
+# Select dataframe subset with based on english
+CASchools1 <- subset(CASchools, english < 1.9)
+CASchools2 <- subset(CASchools, english >= 1.9 & english < 8.8)
+CASchools3 <- subset(CASchools, english >= 8.8 & english < 23)
+CASchools4 <- subset(CASchools, english >= 23)
+# Run regression of Score onto STR in each subsample
+lm1.1 <- lm(Score ~ STR, data = CASchools1) # Score onto STR in CASchools1
+lm1.2 <- lm(Score ~ STR, data = CASchools2) # Score onto STR in CASchools2
+lm1.3 <- lm(Score ~ STR, data = CASchools3) # Score onto STR in CASchools3
+lm1.4 <- lm(Score ~ STR, data = CASchools4) # Score onto STR in CASchools4
+# Run regression of english onto STR in each subsample
+lm3.1 <- lm(english ~ STR, data = CASchools1) # english onto STR in CASchools1
+lm3.2 <- lm(english ~ STR, data = CASchools2) # english onto STR in CASchools2
+lm3.3 <- lm(english ~ STR, data = CASchools3) # english onto STR in CASchools3
+lm3.4 <- lm(english ~ STR, data = CASchools4) # english onto STR in CASchools4
+# Scatter plots of STR, Score and english data
+par(mfrow=c(1,2)) 
+# STR vs Score
+plot(CASchools$STR,CASchools$Score,
+     xlab = "Student-teacher ratio",
+     ylab = "Test score",
+     col = "gray",
+     xlim = c(10, 30),
+     ylim = c(600, 720))
+abline(lm1,
+       lwd = 3,
+       col = "gray")
+points(CASchools1$STR,CASchools1$Score,
+       col = "blue")
+abline(lm1.1,
+       lwd = 3,
+       col = "blue")
+# STR vs english
+plot(CASchools$STR,CASchools$english,
+     col = "gray",
+     xlab = "Student-teacher ratio",
+     ylab = "Learning English",
+     xlim = c(10, 30),
+     ylim = c(0, 100))
+abline(lm3,
+       lwd = 3,
+       col = "gray")
+points(CASchools1$STR,CASchools1$english,
+       col = "blue")
+abline(lm3.1,
+       lwd = 3,
+       col = "blue")
+
+```
+
+## Holding Percentage English learners constant
+
+Districts where percentage learning English b/w 1.9%-8.8%
+
+```{r echo=FALSE, error=FALSE, warning=FALSE, out.width = "80%"}
+# Scatter plots of STR, Score and english data
+par(mfrow=c(1,2)) 
+# STR vs Score
+plot(CASchools$STR,CASchools$Score,
+     xlab = "Student-teacher ratio",
+     ylab = "Test score",
+     col = "gray",
+     xlim = c(10, 30),
+     ylim = c(600, 720))
+abline(lm1,
+       lwd = 3,
+       col = "gray")
+points(CASchools1$STR,CASchools1$Score,
+       col = "blue")
+abline(lm1.1,
+       lwd = 3,
+       col = "blue")
+points(CASchools2$STR,CASchools2$Score,
+       col = "red")
+abline(lm1.2,
+       lwd = 3,
+       col = "red")
+# STR vs english
+plot(CASchools$STR,CASchools$english,
+     col = "gray",
+     xlab = "Student-teacher ratio",
+     ylab = "Learning English",
+     xlim = c(10, 30),
+     ylim = c(0, 100))
+abline(lm3,
+       lwd = 3,
+       col = "gray")
+points(CASchools1$STR,CASchools1$english,
+       col = "blue")
+abline(lm3.1,
+       lwd = 3,
+       col = "blue")
+points(CASchools2$STR,CASchools2$english,
+       col = "red")
+abline(lm3.2,
+       lwd = 3,
+       col = "red")
+
+```
+
+## Holding Percentage English learners constant
+
+Districts where percentage learning English b/w 8.8%-23%
+
+```{r echo=FALSE, error=FALSE, warning=FALSE, out.width = "80%"}
+# Scatter plots of STR, Score and english data
+par(mfrow=c(1,2)) 
+# STR vs Score
+plot(CASchools$STR,CASchools$Score,
+     xlab = "Student-teacher ratio",
+     ylab = "Test score",
+     col = "gray",
+     xlim = c(10, 30),
+     ylim = c(600, 720))
+abline(lm1,
+       lwd = 3,
+       col = "gray")
+points(CASchools1$STR,CASchools1$Score,
+       col = "blue")
+abline(lm1.1,
+       lwd = 3,
+       col = "blue")
+points(CASchools2$STR,CASchools2$Score,
+       col = "red")
+abline(lm1.2,
+       lwd = 3,
+       col = "red")
+points(CASchools3$STR,CASchools3$Score,
+       col = "orange")
+abline(lm1.3,
+       lwd = 3,
+       col = "orange")
+# STR vs english
+plot(CASchools$STR,CASchools$english,
+     col = "gray",
+     xlab = "Student-teacher ratio",
+     ylab = "Learning English",
+     xlim = c(10, 30),
+     ylim = c(0, 100))
+abline(lm3,
+       lwd = 3,
+       col = "gray")
+points(CASchools1$STR,CASchools1$english,
+       col = "blue")
+abline(lm3.1,
+       lwd = 3,
+       col = "blue")
+points(CASchools2$STR,CASchools2$english,
+       col = "red")
+abline(lm3.2,
+       lwd = 3,
+       col = "red")
+points(CASchools3$STR,CASchools3$english,
+       col = "orange")
+abline(lm3.3,
+       lwd = 3,
+       col = "orange")
+
+```
+
+## Holding Percentage English learners constant
+
+Districts where percentage learning English $>$ 23%
+
+```{r echo=FALSE, error=FALSE, warning=FALSE, out.width = "80%"}
+# Scatter plots of STR, Score and english data
+par(mfrow=c(1,2)) 
+# STR vs Score
+plot(CASchools$STR,CASchools$Score,
+     xlab = "Student-teacher ratio",
+     ylab = "Test score",
+     col = "gray",
+     xlim = c(10, 30),
+     ylim = c(600, 720))
+abline(lm1,
+       lwd = 3,
+       col = "gray")
+points(CASchools1$STR,CASchools1$Score,
+       col = "blue")
+abline(lm1.1,
+       lwd = 3,
+       col = "blue")
+points(CASchools2$STR,CASchools2$Score,
+       col = "red")
+abline(lm1.2,
+       lwd = 3,
+       col = "red")
+points(CASchools3$STR,CASchools3$Score,
+       col = "orange")
+abline(lm1.3,
+       lwd = 3,
+       col = "orange")
+points(CASchools4$STR,CASchools4$Score,
+       col = "green")
+abline(lm1.4,
+       lwd = 3,
+       col = "green")
+# STR vs english
+plot(CASchools$STR,CASchools$english,
+     col = "gray",
+     xlab = "Student-teacher ratio",
+     ylab = "Learning English",
+     xlim = c(10, 30),
+     ylim = c(0, 100))
+abline(lm3,
+       lwd = 3,
+       col = "gray")
+points(CASchools1$STR,CASchools1$english,
+       col = "blue")
+abline(lm3.1,
+       lwd = 3,
+       col = "blue")
+points(CASchools2$STR,CASchools2$english,
+       col = "red")
+abline(lm3.2,
+       lwd = 3,
+       col = "red")
+points(CASchools3$STR,CASchools3$english,
+       col = "orange")
+abline(lm3.3,
+       lwd = 3,
+       col = "orange")
+points(CASchools4$STR,CASchools4$english,
+       col = "green")
+abline(lm3.4,
+       lwd = 3,
+       col = "green")
+
+```
+
+## Holding Percentage English learners constant (cont'd)
+
+$$Score_i = \beta_0 + \beta_1 STR_i + u_i; \quad i=1,2,...,n$$
+
+|                                                             | $\hat{\beta}_0$              | $\hat{\beta}_1$            | 
+| ---------------                                             |--:                           | --:                        | 
+| All districts                                               | $\underset{(10.36)}{698.93}$ | $-\underset{(0.52)}{2.28}$ | 
+| Districts where percentage learning English $\leq$ 1.9%     | $\underset{(19.03)}{650.24}$ | $\underset{(0.98)}{0.77}$  | 
+| Districts where percentage learning English b/w 1.9%-8.8%   | $\underset{(16.90)}{700.75}$ | $-\underset{(0.82)}{1.87}$ | 
+| Districts where percentage learning English b/w 8.8%-23%    | $\underset{(18.16)}{695.87}$ | $-\underset{(0.92)}{2.20}$ | 
+| Districts where percentage learning English $>$ 23%         | $\underset{(15.57)}{653.07}$ | $-\underset{(0.76)}{0.87}$ | 
+
+## Multiple regression analysis
+
+- Dividing the data into groups is a flexible way of addressing omitted variable bias; 
+
+- The approach also has disadvantages:
+
+  - How to split data based on continuous omitted variable?
+  
+  - Impractible with many omitted variables
+  
+  - Does not yield a single estimate of the effect of $X$ on $Y$ holding a set of other variables constant
+  
+- **Multiple regression analysis** is a way of circumventing these disadvantages
+
+# The multiple regression model
+
+## The population regression function with two regressors
+
+- Let $Y$ be the random variable we want to model as a function of **two** random variables $X_1$ and $X_2$
+
+  We say $Y$ is the **dependent variable**, and $X_1$ and $X_2$ are the **independent variables** or **regressors**
+
+- Consider the linear **population regression function** 
+
+  <div class="box">
+  $$\mathrm{E}(Y|X_1,X_2) = \beta_0 + \beta_1 X_1 + \beta_2 X_2$$
+  </div>
+  
+  The population regression function is the relationship b/w $Y$ and $X_1$ and $X_2$ that holds **on average** in the population
+  
+<!-- - The population regression function has **population regression coefficients** $\beta_0$, $\beta_1$ and $\beta_2$ -->
+
+## Interpreting the slope coefficients 
+
+- The population regression function has **population regression coefficients** $\beta_0$, $\beta_1$ and $\beta_2$
+
+- Consider predictions for two observations with the **same** values of $X_2$, but values of $X_1$ that differ by $\Delta X_1$; then,
+
+  $$\beta_1 = \frac{\mathrm{E}(Y|X_1+\Delta X_1,X_2)  - \mathrm{E}(Y|X_1,X_2)}{\Delta X_1}$$
+  
+- $\beta_1$ is difference in predicted $Y$ b/w obs. w/ unit difference in $X_1$, **holding $X_2$ constant**, or **controlling for $X_2$**
+
+  We sometimes say $\beta_1$ is the **partial effect** on $Y$ of $X_1$. Analogously, $\beta_2$ is the **partial effect** on $Y$ of $X_2$
+
+## The error term
+
+<!-- - Let $u$ be the **error term**: the error made when predicting $Y$ by its conditional mean; that is, $u \equiv Y - \mathrm{E}(Y|X_1,X_2)$ -->
+
+- Let $u$ be the **error term**: the error made when predicting $Y$ by its conditional mean $\mathrm{E}(Y|X_1,X_2)$; that is,
+
+  <div class="box">
+  $$u \equiv Y - \mathrm{E}(Y|X_1,X_2)$$
+  </div>
+
+- Defines $Y$ as a linear function of $X_1$ and $X_2$, and $u$:
+  
+  <div class="box">
+  $$Y = \beta_0 + \beta_1 X_1 +  \beta_2 X_2 + u$$
+  </div>
+
+- The error term $u$ contains **all** determinants of the dependent variable $Y$ that are **not** $X_1$ nor $X_2$
+
+## The population regression model with two regressors
+
+- Estimation problem: learn about $\beta_0$, $\beta_1$, and $\beta_2$ from **random sample** of data from the population
+
+  $$(Y_i,X_{1i},X_{2i}; i=1,...,n)$$
+
+- Each observation $i$ in the sample follows the population regression model; that is,
+
+  <div class="box">
+  $$Y_i = \beta_0 + \beta_1 X_{1i} + \beta_1 X_{2i} + u_i; \quad i=1,...,n$$
+  </div>
+  
+- The multiple regression model generalizes easily to encompass $k$ regressors
+
+# The OLS estimator in multiple regression 
+
+## The data
+
+```{r echo=FALSE, error=FALSE, warning=FALSE, out.width = "100%"}
+fig <- plot_ly(x = CASchools$STR, y = CASchools$english, z = CASchools$Score, 
+               marker = list(color = CASchools$Score, colorscale = list(c(0, 1), c("lightblue", "blue")), showscale = FALSE))
+fig <- fig %>% add_markers()
+fig <- fig %>% layout(scene = list(
+                     xaxis = list(title = 'Student-teacher ratio'),
+                     yaxis = list(title = 'Percentage English learners'),
+                     zaxis = list(title = 'Test score')))
+fig
+```
+
+## The best plane  
+
+- The OLS estimator finds regression coefficients that puts the fitted regression plane as **close to** the data as possible
+
+- The distance between the regression plane is measured by the **sum of squared in-sample prediction errors**
+
+  With two regressors, OLS estimators $\hat{\beta}_0,\hat{\beta}_1,\hat{\beta}_2$ solve
+
+  <div class="box">
+  $$\min_{\hat{\beta}_0,\hat{\beta}_1,\hat{\beta}_2} \sum_{i=1}^n \big(\underset{ \text{in-sample prediction error} }{\underbrace{Y_i - \hat{\beta}_0 - \hat{\beta}_1 X_{1i} - \hat{\beta}_2 X_{2i} }} \big)^2$$
+  </div>
+
+## OLS terminology revisited
+
+- The **sample regression function** is 
+
+  $$\hat{\beta}_0 + \hat{\beta}_1 X_1 + \hat{\beta}_2 X_2$$
+
+- The **predicted value** of $Y_i$ given $X_{1i}$ and $X_{2i}$ is 
+
+  $$\hat{Y}_i = \hat{\beta}_0 + \hat{\beta}_1 X_{1i} + \hat{\beta}_2 X_{2i}$$
+
+- The **residual** for the $i$th observation 
+
+  $$\hat{u}_i = Y_i - \hat{Y}_i = Y_i - \hat{\beta}_0 - \hat{\beta}_1 X_{1i} - \hat{\beta}_2 X_{2i}$$
+
+## Implementing the OLS estimator in R
+
+```{r echo=TRUE, error=FALSE, warning=FALSE, out.width = "70%"}
+
+lm4 <- lm(Score ~ STR + english, data = CASchools)
+summary(lm4)
+```
+
+## ... with robust standard errors
+
+```{r echo=TRUE, error=FALSE, warning=FALSE, out.width = "70%"}
+parameters(lm4, robust = TRUE, vcov_type = "HC1")
+```
+
+## The estimated regression plane
+
+```{r echo=FALSE, error=FALSE, warning=FALSE, out.width = "100%"}
+lm4.resSq <- lm4$residuals^2
+
+#Graph Resolution (more important for more complex shapes)
+graph_reso <- 1
+
+# Setup Axis
+axis_x <- seq(min(CASchools$STR), max(CASchools$STR), by = graph_reso)
+axis_y <- seq(min(CASchools$english), max(CASchools$english), by = graph_reso)
+
+# Sample points
+lm4.surface <- expand.grid(STR = axis_x, english = axis_y, KEEP.OUT.ATTRS = FALSE)
+lm4.surface$Score <- predict.lm(lm4, newdata = lm4.surface)
+lm4.surface <- acast(lm4.surface, english ~ STR, value.var = "Score") #y ~ x
+
+
+fig <- plot_ly(x = CASchools$STR, y = CASchools$english, z = CASchools$Score,
+               marker = list(color = lm4.resSq, colorscale = list(c(0, 1), c("lightblue", "blue")), showscale = FALSE, showlegend = FALSE))
+fig <- fig %>% add_markers()
+fig <- fig %>% layout(scene = list(
+                     xaxis = list(title = 'Student-teacher ratio'),
+                     yaxis = list(title = 'Percentage English learners'),
+                     zaxis = list(title = 'Test score')))
+fig <- add_trace(p = fig,
+                       z = lm4.surface,
+                       x = axis_x,
+                       y = axis_y,
+                       type = "surface",
+                       colorscale = list(c(0, 1), c("pink", "red")), showscale = FALSE,showlegend = FALSE, opacity = 0.8) 
+fig
+```
+
+# Summary
+
+## Summary
+
+- Omitted variable bias arises if an omitted regressor (i) correlates w/ included regressors, (ii) is a determinant of $Y$
+
+- The multiple regression model is a linear regression model w/ multiple regressors $X_1,...,X_k$. Associated w/ each regressor is a coefficient $\beta_1,...,\beta_k$
+
+- Coefficient $\beta_1$ measures the expected change in $Y$ from a one-unit change in $X_1$, holding all the other regressors constant (with analogous interpretations of $\beta_2,..,\beta_k$)
+
+- The OLS estimator in the multiple regression model minimizes the sum of squared residuals, as in the simple linear regression model
